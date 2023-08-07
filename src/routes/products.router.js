@@ -1,71 +1,73 @@
 const express = require('express')
+const fs = require('fs')
 const router = express.Router()
 
+class contenedor {
+    constructor(file){
+        this.file = file
+    }
 
-const products = [
 
-    {id:1,
-        title:"Jack Daniels",
-        description:"descripcion del producto 1",
-        code: "des-1",
-        price:30,
-        status: true,
-        stock: 50,        
-        category:"destilados"},
-    {id:2,
-        title:"Quilmes",
-        description:"descripcion del producto 2",
-        code: "ber-1",
-        price:5,
-        status: true,
-        stock: 150,        
-        category:"cervezas"},
-    {id:3,
-        title:"Heineken",
-        description:"descripcion del producto 3",
-        code: "ber-2",
-        price:6,
-        status: true,
-        stock: 130,        
-        category:"cervezas"},
-    {id:4,
-        title:"Hendricks",
-        description:"descripcion del producto 4",
-        code: "des-2",
-        price:27,
-        status: true,
-        stock: 47,        
-        category:"destilados"}
-   
-        
-]
+    async getAll(){
+        try {
+            const objects = await this.getAllObjects()
+            return objects
+        } catch (error) {
+            throw new Error ('Error al obtener los objetos')
+        }
+    }
+
+
+    async getAllObjects(){
+        try {
+            const data = await fs.promises.readFile(this.file, 'utf-8')
+            return data ? JSON.parse(data) : []
+        } catch (error) {
+            return []
+        }
+    }
+
+}
+
+const products = new contenedor('products.json')
 
 //ruta todos los productos
 
-router.get('/api/products', (req, res) =>{
-    res.json(products)
+router.get('/api/products',async (req, res) =>{
+    try{
+        const allProducts = await products.getAll()
+        res.json(allProducts)
+    }catch (error){
+        res.status(500).json({error: "Error al obtener los productos"})
+
+    }
 })
 
 //ruta producto especifico buscado por id
 
-router.get('/api/products/:pid', (req, res) =>{
-    const productId = parseInt(req.params.pid)
-    //buscamos que el id ingresado por params coincida con alguno del array de productos
-    const product = products.find((p) => p.id === productId)
-
-    if(product){
-        res.json(product)
-    }else{
-        res.status(400).json({message:"Producto no encontrado"})
+router.get('/api/products/:pid', async (req, res) =>{
+    try{
+        const productId = parseInt(req.params.pid)
+        const allProducts = await products.getAllObjects()
+        const product = allProducts.find((p) => p.id === productId)
+        if(product){
+            res.json(product)
+        }else{
+            res.status(404).json({message:"Producto no encontrado"})
+        }
+    }catch(error){
+        res.status(500).json({error: "Error al obtener el producto"})
     }
 })
 
 //POST agregar un producto
 
-router.post("/api/products", (req, res) =>{
-    const {title, description, code, price, status, stock, category} = req.body
-    const newProduct = {
-        id: products.length +1,
+// Ruta para agregar un nuevo producto
+router.post('/api/products', async (req, res) => {
+    try {
+      const {title, description, code, price, status, stock, category} = req.body; // Obtener los datos del nuevo producto del cuerpo de la solicitud
+      const newProduct = {
+        
         title: "Cualquier bebida",
         description:"Este es una bebida generica",
         code: "333",
@@ -76,40 +78,77 @@ router.post("/api/products", (req, res) =>{
 
 
     }
-
-    products.push(newProduct)
-    res.status(201).json(newProduct)
-})
+      const allProducts = await products.getAllObjects();
+  
+      // Generar un nuevo ID para el producto (por ejemplo, puedes usar la longitud de la matriz + 1)
+      const newProductId = allProducts.length + 1;
+      
+      // Agregar el ID al nuevo producto
+      newProduct.id = newProductId;
+  
+      // Agregar el nuevo producto a la lista de productos
+      allProducts.push(newProduct);
+  
+      // Guardar los productos actualizados en el archivo
+      await fs.promises.writeFile(products.file, JSON.stringify(allProducts));
+  
+      res.status(201).json(newProduct); // Devolver el nuevo producto creado
+    } catch (error) {
+      res.status(500).json({ error: 'Error al agregar el producto' });
+    }
+  });
+  
 
 //PUT modificar un producto
 
-router.put("/api/products/:pid", (req, res) =>{
+router.put("/api/products/:pid", async (req, res) =>{
+  try{
     const productId = parseInt(req.params.pid)
-    const product = products.find((p) => p.id === productId)
+    const allProducts = await products.getAllObjects()
+    const product = allProducts.find((p) => p.id === productId)
     if(product){
         const {title, description, code, price, status, stock, category} = req.body
         product.title = "Black Label"
         product.description = "Buen whisky 12 años"
         product.price = 30
+
+        // Guardar los productos actualizados en el archivo
+      await fs.promises.writeFile(products.file, JSON.stringify(allProducts))
+
         res.json(product)
+
     }else{
         res.status(404).json({message: "producto no encontrado"})
     }
+
+  }catch (error){
+    res.status(500).json({error: "Error al obtener el producto"})
+
+  }
 })
 
 //DELETE 
 
-router.delete("/api/products/:pid", (req, res) =>{
-    const productId = parseInt(req.params.pid)
-    const product = products.find((p) => p.id === productId)
+router.delete("/api/products/:pid", async (req, res) =>{
+    try{
+        const productId = parseInt(req.params.pid)
+        const allProducts = await products.getAllObjects()
+        const productIndex = allProducts.findIndex((p) => p.id === productId)
+       
+        if(productIndex === -1){
+            res.status(404).json({message: "producto no encontrado"})
+    
+        }else{
+    
+            allProducts.splice(productIndex, 1) 
+            await fs.promises.writeFile(products.file, JSON.stringify(allProducts))
+            return res.json(allProducts)
+            
+    
+        }
 
-    if(!product){
-        res.status(404).json({message: "producto no existe"})
-
-    }else{
-
-        const deleteProduct = products.splice(product, 1)
-        return res.json(deleteProduct[product])
+    }catch (error){
+        res.status(500).json({error: "Error al obtener el producto"})
 
     }
     
