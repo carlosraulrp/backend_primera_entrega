@@ -30,51 +30,43 @@ class contenedor {
 }
 
 const carts = new contenedor('carts.json')
+const products = new contenedor('products.json')
 
-//ruta todos los productos en el carrito
-
-router.get('/api/carts',async (req, res) =>{
-    try{
-        const allCarts = await carts.getAll()
-        res.json(allCarts)
-    }catch (error){
-        res.status(500).json({error: "Error al obtener los productos"})
-
-    }
-})
-
-
-//POST agregar un producto
-
-// Ruta para agregar un nuevo producto
-router.post('/api/carts', async (req, res) => {
+// POST para agregar un producto a un carrito usando /:cid/product/:pid
+router.post('/api/carts/:cid/product/:pid', async (req, res) => {
     try {
-      const {title} = req.body; 
-      const newCart = {
-        
-        title: "otro cart"
+        const cartId = parseInt(req.params.cid);
+        const productId = parseInt(req.params.pid);
 
+        const allCarts = await carts.getAllObjects();
+        const cartIndex = allCarts.findIndex(cart => cart.id === cartId);
 
+        if (cartIndex === -1) {
+            res.status(404).json({ message: 'Carrito no encontrado' });
+            return;
+        }
+
+        const allProducts = await products.getAllObjects();
+        const product = allProducts.find(p => p.id === productId);
+
+        if (!product) {
+            res.status(404).json({ message: 'Producto no encontrado' });
+            return;
+        }
+
+        // Agregar el producto al carrito
+        allCarts[cartIndex].products.push(product);
+        await fs.promises.writeFile(carts.file, JSON.stringify(allCarts));
+
+        res.status(201).json(allCarts[cartIndex]); // Devolver el carrito actualizado
+    } catch (error) {
+        res.status(500).json({ error: 'Error al agregar producto al carrito' });
     }
-
-    const allCarts = await carts.getAllObjects()
-    const newCartId = allCarts.length + 1
-
-    //Agregando el id al nuevo cart
-
-    newCart.id = newCartId
-
-    //Agregar el nuevo cart a el array 
-    allCarts.push(newCart)
-
-    // Guardar los productos actualizados en el archivo
-    await fs.promises.writeFile(carts.file, JSON.stringify(allCarts));
-  
-    res.status(201).json(newCart); // Devolver el nuevo carrito
-  } catch (error) {
-    res.status(500).json({ error: 'Error al agregar carrito' })
-  }
 });
+
+
+
+
 
 
 
